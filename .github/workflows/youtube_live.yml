@@ -1,0 +1,46 @@
+name: 🔴 24/7 Stickman Live Stream
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 */5 * * *'
+
+concurrency:
+  group: youtube-live-stream
+  cancel-in-progress: true
+
+jobs:
+  live-stream:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🛠️ Install FFmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: 🎬 Build Playlist from All Shorts
+        run: |
+          shopt -s nullglob
+          files=(*.mp4)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "❌ Koi .mp4 file nahi mili!"
+            exit 1
+          fi
+          
+          for f in $(printf '%s\n' "${files[@]}" | sort); do
+            echo "file '$PWD/$f'" >> playlist.txt
+          done
+          
+          echo "✅ Playlist created with ${#files[@]} shorts!"
+
+      - name: 🚀 Start YouTube Live Stream
+        env:
+          STREAM_KEY: ${{ secrets.YOUTUBE_STREAM_KEY }}
+        run: |
+          ffmpeg -re -stream_loop -1 -f concat -safe 0 -i playlist.txt \
+            -c:v copy -c:a copy \
+            -f flv -flvflags no_duration_filesize \
+            "rtmp://a.rtmp.youtube.com/live2/$STREAM_KEY"
